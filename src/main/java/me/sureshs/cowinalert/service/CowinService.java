@@ -132,7 +132,7 @@ public class CowinService {
 
 			headers.set("Content-Type", "text/html; charset=iso-8859-1");
 			//headers.set("Accept-Charset", "iso-8859-1");
-			
+			headers.set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36 Edg/90.0.818.51");
 			
 			HttpEntity entity = new HttpEntity(headers);
 
