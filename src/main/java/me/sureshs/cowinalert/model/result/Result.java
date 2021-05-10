@@ -11,8 +11,6 @@ public class Result implements Comparable<Result> {
 
 	private String name;
 
-	// private String address;
-
 	private String fee_type;
 
 	private String date;

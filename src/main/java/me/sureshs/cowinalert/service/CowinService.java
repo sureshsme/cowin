@@ -3,8 +3,9 @@ package me.sureshs.cowinalert.service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -12,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -31,12 +31,12 @@ public class CowinService {
 	private String url;
 	
 	@Value("${district_id}")
-	private String district_id;
+	private List<String> districts;
 	
 	@Value("${date:#{null}}")
 	private String date;
 
-	@Value("${days:#{10}}")
+	@Value("${days:#{2}}")
 	private int days;
 	
 	@Value("${threshold:#{1}}")
@@ -45,115 +45,148 @@ public class CowinService {
 	@Value("${telegram.url}")
 	private String telegramUrl;
 	
-	@Value("${telegram.chatIds}")
-	private List<String> chatIds;
-	
 	@Value("${telegram.url.test}")
 	private String telegramUrlTest;
+
+	@Value("${telegram.chatId.admin}")
+	private String telegramAdmin;
 	
-	@Value("${centers.good:#{null}")
-	private List<String> goodCenters;
-	
+	@Value("#{${telegram.subscribers:{:}}}")
+	private Map<String, List<String>> subscribers;
+
+	@Value("#{${districts.map}}")
+	private Map<String, String> districtsMap;
+
 	public void getResponseForDistrict() {
-
-		List<String> dates = getDates();
+ 
+		List<String> dates = getDatesToCheck(this.date, this.days);
 		
-		Set<Result> results = new TreeSet<Result>(getResult(dates));
+		Map<String, Set<Result>> resultsMap = getResultMap(subscribers.keySet(), dates);
 		
-		String summary = "found " + results.size() + " locations @ " + this.district_id + " from " + dates.get(0)
-				+ " to " + dates.get(dates.size() - 1) + " with at least " + this.threshold + " slot(s)";
-		log.info(summary);
+		resultsMap.keySet().forEach(k -> {
 
-		if (!results.isEmpty()) {
+			Set<Result> results = resultsMap.get(k);
 			
-			sendMessage(results, summary, false);
+			String summary = "found " + results.size() + " locations @ " + this.districtsMap.get(k) + " from " + dates.get(0)
+							+ " to " + dates.get(dates.size() - 1) + " with at least " + this.threshold + " slot(s)";
+			log.info(summary);
 			
-			results.forEach(r -> log.info(r.toString()));
-			
-		}
+			if (!results.isEmpty()) {
+				
+				sendMessages(this.telegramUrl, this.subscribers.get(k), summary, results);
+				
+				results.forEach(r -> log.info(r.toString()));
+				
+			}
+
+		
+		});
+
 		
 	}
 
-	public void sendMessage(Set<Result> results, String summary, boolean test) {
 
+	private String formatSummary(Set<Result> results, String summary) {
+		
 		StringBuilder msg = new StringBuilder();
 		msg.append(summary).append("\n\n");
 		results.forEach(r -> msg.append(r).append("\n"));
 		
-		String text = msg.toString();
+		String textToSend = msg.toString();
 		
-		if (text.length() > 4000)
-			text = text.substring(0, 4000).concat("...");
-		
-		RestTemplate rest = new RestTemplate();		
-		
-		if (!test) {
-			for (String chatId : this.chatIds) {
+		 if (textToSend.length() > 4000)
+			 textToSend = textToSend.substring(0, 4000).concat("...");
 
-				String url = this.telegramUrl.concat("?").concat("chat_id=").concat(chatId).concat("&text=").concat(text);
-				
-				rest.getForObject(url, String.class);
-				
-			}
-		} else {
-			rest.getForObject(this.telegramUrlTest,String.class);
-		}
-		
+		return textToSend;
 	}
 	
-	private List<String> getDates() {
+	private void sendMessages(String url, List<String> chatIds, String summary, Set<Result> results) {
+
+		String text = formatSummary(results, summary);
+
+		chatIds.forEach(c -> sendTelegramMessage(url, c, text));
+
+	}
+	
+	
+	public void sendTelegramMessage(String url, String chatId, String text) {
+
+		RestTemplate rest = new RestTemplate();
+
+		url += "?".concat("chat_id=").concat(chatId).concat("&text=").concat(text);
+
+		rest.getForObject(url, String.class);
+
+	}
+
+	
+	private List<String> getDatesToCheck(String date, int days) {
 
 		List<String> dates = new ArrayList<String>();
 
 		DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-		LocalDate startDate = this.date != null? LocalDate.parse(this.date, dateFormat) : LocalDate.now(); 
+		LocalDate startDate = date != null? LocalDate.parse(date, dateFormat) : LocalDate.now(); 
 		
-		for(int i = 0; i < this.days; i++) {
+		for(int i = 0; i < days; i++) {
 			dates.add(startDate.plusDays(i).format(dateFormat));
 		}
 
 		return dates;
 	}
 	
-	private List<Result> getResult(List<String> dates) {
-		List<Result> results = new ArrayList<Result>();
+	
+	private Map<String, Set<Result>> getResultMap(Set<String> districts, List<String> dates) {
+		
+		Map<String, Set<Result>> resultsMap = new LinkedHashMap<String, Set<Result>>();
 
-		for (String date : dates) {
+		
+		for (String district : districts) {
 
-			log.debug("checking for date : {} @ {}", date, this.district_id);
-
-			String url = this.url.concat("?").concat("district_id=").concat(this.district_id).concat("&date=").concat(date);
-			log.debug(url);
-
-			RestTemplate rest = new RestTemplate();
+			List<Result> results = new ArrayList<Result>();
 			
-			HttpHeaders headers = new HttpHeaders();
-			//headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+			for (String date : dates) {
 
-			headers.set("Content-Type", "text/html; charset=iso-8859-1");
-			//headers.set("Accept-Charset", "iso-8859-1");
-			headers.set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36 Edg/90.0.818.51");
+				log.debug("checking for date : {} @ {}", date, district);
+
+				String url = this.url.concat("?").concat("district_id=").concat(district).concat("&date=").concat(date);
+				log.debug(url);
+
+				RestTemplate rest = new RestTemplate();
+
+				HttpHeaders headers = new HttpHeaders();
+				headers.set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36 Edg/90.0.818.51");
+
+				try {
+
+					ResponseEntity<Response> response = rest.exchange(url, HttpMethod.GET, new HttpEntity(headers), Response.class);
+
+					results.addAll(parseResponse(response.getBody()));
+					
+				} catch (Exception e) {
+
+					sendTelegramMessage(this.telegramUrlTest, this.telegramAdmin, "I have failed you :-( :-(!!");
+					
+					System.exit(0);
+					
+				}
 			
-			HttpEntity entity = new HttpEntity(headers);
-
-			System.out.println(url);
-			ResponseEntity<Response> response = rest.exchange(url, HttpMethod.GET, entity, Response.class);
-			//ResponseEntity<Response> response = rest.getForEntity(url, Response.class);
-
-			results.addAll(parseResponse(response.getBody()));
+			}
+			
+			resultsMap.put(district, new TreeSet<Result>(results));
+			
 		}
-		return results;
+		
+		return resultsMap;
 
 	}
+	
 	
 	private List<Result> parseResponse(Response response){
 		
 		List<Result> results = new ArrayList<Result>();
 		
 		for(Center center : response.getCenters()) {
-			
-			if ((this.goodCenters == null) || (this.goodCenters.contains(center))){
-				
+	
 				for (Session session : center.getSessions()) {
 					
 					if (session.getAvailable_capacity() >= this.threshold) {
@@ -167,7 +200,6 @@ public class CowinService {
 								.build());
 					}
 				}
-			}
 
 		}
 		

@@ -3,6 +3,7 @@ package me.sureshs.cowinalert.schedule;
 import java.util.HashSet;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,13 @@ public class Scheduler {
 
 	@Autowired private CowinService service;
 	
+	@Value("${telegram.url.test}")
+	private String telegramUrlTest;
+
+	@Value("${telegram.chatId.admin}")
+	private String telegramAdmin;
+
+	
 	@Scheduled(cron = "${cron}") //every 30th second = "*/30 * * * * *" 
 	public void execute() {
 
@@ -30,7 +38,7 @@ public class Scheduler {
 	public void test() {
 
 		log.info(":: test :: ");
-		service.sendMessage(new HashSet<Result>(), "", true);
+		service.sendTelegramMessage(this.telegramUrlTest, this.telegramAdmin, "Hello there!");
 
 	}
 	
