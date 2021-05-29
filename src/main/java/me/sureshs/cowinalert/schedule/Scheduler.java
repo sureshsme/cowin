@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 import me.sureshs.cowinalert.model.result.Result;
+import me.sureshs.cowinalert.service.CowinAlertService;
 import me.sureshs.cowinalert.service.CowinService;
 
 @Component
@@ -16,7 +17,7 @@ import me.sureshs.cowinalert.service.CowinService;
 public class Scheduler {
 
 
-	@Autowired private CowinService service;
+	@Autowired private CowinAlertService service;
 	
 	@Value("${telegram.url.test}")
 	private String telegramUrlTest;
@@ -29,7 +30,7 @@ public class Scheduler {
 	public void execute() {
 
 		log.info("----------------------------------------------------------------------------------------");
-		service.getResponseForDistrict();
+		service.execute();
 
 	}
 	
@@ -41,5 +42,14 @@ public class Scheduler {
 		service.sendTelegramMessage(this.telegramUrlTest, this.telegramAdmin, "Hello there!");
 
 	}
+
 	
+	@Scheduled(cron = "* 44 16 * * *")  //every hour = 0 0 * * * *
+	public void goodMorning() {
+
+		log.info(":: test :: ");
+		service.sendTelegramMessage(this.telegramUrlTest, this.telegramAdmin, "Hello there!");
+
+	}
+
 }

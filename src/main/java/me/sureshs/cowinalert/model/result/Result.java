@@ -19,9 +19,15 @@ public class Result implements Comparable<Result> {
 
 	private String vaccine;
 
+	private Integer min_age_limit;
+
+	private Integer available_capacity_dose1;
+	
+	private Integer available_capacity_dose2;
+
 	@Override
 	public String toString() {
-		return name + " | " + date + " | " + available_capacity + " | " + vaccine + " | " + fee_type;
+		return name + " | " + date + " | age: " + min_age_limit + " | " + vaccine + " | D1: " + available_capacity_dose1 + " | D2:" + available_capacity_dose2;
 	}
 
 	@Override

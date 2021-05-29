@@ -13,4 +13,8 @@ public class Session {
 	
 	private String vaccine;
 	
+	private Integer available_capacity_dose1;
+	
+	private Integer available_capacity_dose2;
+	
 }

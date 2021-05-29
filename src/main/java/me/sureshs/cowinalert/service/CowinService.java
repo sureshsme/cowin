@@ -197,6 +197,7 @@ public class CowinService {
 								.date(session.getDate())
 								.available_capacity(session.getAvailable_capacity())
 								.vaccine(session.getVaccine())
+								
 								.build());
 					}
 				}
